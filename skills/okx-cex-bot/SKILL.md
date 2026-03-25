@@ -380,8 +380,8 @@ okx bot grid create --instId <id> --algoOrdType <type> \
 | `--lever` | Cond. | - | Leverage (e.g., `5`) — contract grid only |
 | `--sz` | Cond. | - | Investment margin — contract grid only. USDT for USDT-margined (e.g. `BTC-USDT-SWAP`); base coin for coin-margined (e.g. `BTC-USD-SWAP` → sz in BTC) |
 | `--basePos` / `--no-basePos` | No | `true` | Open a base position at creation — contract grid only (ignored for neutral direction). Default is `true` (opens base position). Use `--no-basePos` to disable. |
-| `--tpTriggerPx` | No | - | Take-profit trigger price. Must be above current price. Cannot be used with `--tpRatio` |
-| `--slTriggerPx` | No | - | Stop-loss trigger price. Must be below current price. Cannot be used with `--slRatio` |
+| `--tpTriggerPx` | No | - | Take-profit trigger price. Long grid: must be above current price; Short grid: must be below current price. Cannot be used with `--tpRatio` |
+| `--slTriggerPx` | No | - | Stop-loss trigger price. Long grid: must be below current price; Short grid: must be above current price. Cannot be used with `--slRatio` |
 | `--tpRatio` | No | - | Take-profit ratio (e.g., `0.1` = 10%) — contract grid only. Cannot be used with `--tpTriggerPx` |
 | `--slRatio` | No | - | Stop-loss ratio (e.g., `0.05` = 5%) — contract grid only. Cannot be used with `--slTriggerPx` |
 | `--algoClOrdId` | No | - | User-defined strategy ID. Alphanumeric only, max 32 chars. Must be unique per user — reuse is rejected even after bot stops |
@@ -628,9 +628,9 @@ okx bot dca stop --algoId 87654321
 - **Contract grid direction**: `long` (buys more at lower prices), `short` (sells at higher), `neutral` (both)
 - **Contract grid basePos**: defaults to `true` — long/short grids automatically open a base position at creation. Neutral direction ignores this. Pass `--no-basePos` to disable.
 - **Contract grid --sz**: investment margin in USDT for USDT-margined (e.g. `BTC-USDT-SWAP`); in base coin for coin-margined (e.g. `BTC-USD-SWAP` → sz in BTC)
-- **Coin-margined (CoinM) contract grid**: use instruments like `BTC-USD-SWAP`, `ETH-USD-SWAP`. Only perpetual swaps supported (not delivery futures like `BTC-USD-210924`). Response includes `feeCcy` field (e.g. `BTC`)
+- **Coin-margined (CoinM) contract grid**: use instruments like `BTC-USD-SWAP`, `ETH-USD-SWAP`. Only perpetual swaps supported (not delivery futures like `BTC-USD-YYMMDD`). Response includes `feeCcy` field (e.g. `BTC`)
 - **TP/SL parameters**: `tpTriggerPx` (take-profit trigger price) and `tpRatio` (take-profit ratio) **cannot be used together** — API returns error 50024. Same for `slTriggerPx` and `slRatio`. Use one method per side.
-- **TP/SL trigger price rules**: `tpTriggerPx` must be above current market price; `slTriggerPx` must be below. Check price with `okx-cex-market` before setting.
+- **TP/SL trigger price rules**: Direction matters — Long grid: `tpTriggerPx` must be above current price, `slTriggerPx` must be below; Short grid: `tpTriggerPx` must be below current price, `slTriggerPx` must be above. Check price with `okx-cex-market` before setting.
 - **algoClOrdId**: user-defined strategy ID. Alphanumeric only (`[A-Za-z0-9]`), max 32 chars. Once used, cannot be reused even after the bot stops. Suggest unique IDs (e.g. append timestamp).
 - **Stop type**: `stopType 1` sells/closes all; `stopType 2` keeps assets (default); `stopType 5/6` for contract grid positions
 - **Already stopped bot**: stop returns error — check `bot grid orders --history` first to confirm state
@@ -734,7 +734,7 @@ When collecting parameters from the user, always use natural language — never 
 - Spot grid: ask "How much to invest (USDT)?" (use the actual quote currency) — not "Enter quoteSz"
 - USDT-margined contract grid: ask "How much margin to invest (USDT)?" — not "Enter sz"
 - Coin-margined contract grid: ask "How much margin to invest (BTC)?" (use the actual base coin) — not "Enter sz"
-- TP/SL: ask "Set a take-profit price?" / "Set a stop-loss price?" — not "Enter tpTriggerPx"
+- TP/SL: ask "Set a take-profit price?" / "Set a stop-loss price?" — not "Enter tpTriggerPx" (contract grid can also use ratio: "Set a take-profit ratio (%) instead?")
 - Custom strategy ID: ask "Want to assign a custom ID to this bot?" — not "Enter algoClOrdId"
 - DCA: ask "How much initial margin (USDT)?" — not "Enter initOrdAmt"
 - Ask "What leverage?" — not "Enter lever"
