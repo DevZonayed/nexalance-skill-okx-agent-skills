@@ -158,6 +158,12 @@ okx bot grid create --instId BTC-USDT-SWAP --algoOrdType contract_grid \
   --minPx 90000 --maxPx 100000 --gridNum 10 \
   --direction neutral --lever 5 --sz 100
 
+# Create a coin-margined (CoinM) contract grid bot on BTC-USD-SWAP
+# sz is in BTC (base coin), not USDT
+okx bot grid create --instId BTC-USD-SWAP --algoOrdType contract_grid \
+  --minPx 60000 --maxPx 80000 --gridNum 10 \
+  --direction long --lever 5 --sz 0.01
+
 # List all active grid bots
 okx bot grid orders --algoOrdType grid
 
@@ -234,6 +240,21 @@ okx bot dca stop --algoId <algoId>
 4. okx-cex-bot       okx bot grid orders --algoOrdType contract_grid → confirm active
 ```
 
+### Coin-Margined (CoinM) Contract Grid Bot
+> User: "Create a BTC coin-margined grid bot, long, 5x leverage, invest 0.01 BTC"
+
+```
+1. okx-cex-market    okx market ticker BTC-USD-SWAP                 → confirm current price
+2. okx-cex-portfolio okx account balance BTC                        → confirm BTC margin available
+        ↓ user approves
+3. okx-cex-bot       okx bot grid create --instId BTC-USD-SWAP --algoOrdType contract_grid \
+                       --minPx 60000 --maxPx 80000 --gridNum 10 \
+                       --direction long --lever 5 --sz 0.01
+                       # sz is in BTC (base coin), not USDT
+                       # feeCcy in response will be BTC
+4. okx-cex-bot       okx bot grid orders --algoOrdType contract_grid --instId BTC-USD-SWAP → confirm active
+```
+
 ### Contract DCA Bot (Long / Short)
 > User: "Start a long DCA bot on BTC perp, 3x leverage, $200 initial, 3% TP"
 
@@ -306,9 +327,13 @@ Before any authenticated command:
 
 - Grid create: confirm `--minPx`, `--maxPx`, `--gridNum`; verify `--minPx` < current price < `--maxPx`; confirm investment size
     - Spot grid: `--quoteSz` (USDT) or `--baseSz` (base currency)
-    - Contract grid: `--direction` (`long`/`short`/`neutral`), `--lever`, `--sz` (investment margin in USDT); `--basePos` defaults to `true` (open base position for long/short)
+    - USDT-margined contract grid (`BTC-USDT-SWAP`): `--direction`, `--lever`, `--sz` (margin in USDT)
+    - Coin-margined contract grid (`BTC-USD-SWAP`): `--direction`, `--lever`, `--sz` (margin in base coin, e.g. BTC)
+    - `--basePos` defaults to `true` (open base position for long/short)
+    - Optional TP/SL: `--tpTriggerPx`/`--slTriggerPx` (trigger price) OR `--tpRatio`/`--slRatio` (ratio) — do NOT mix trigger price and ratio for the same side
+    - Optional `--algoClOrdId`: user-defined strategy ID (alphanumeric, max 32 chars, globally unique)
 - DCA create: confirm `--instId`, `--lever`, `--direction`, `--initOrdAmt`, `--safetyOrdAmt`, `--maxSafetyOrds`, `--pxSteps`, `--pxStepsMult`, `--volMult`, `--tpPct`; optional: `--slPct`, `--slMode`, `--allowReinvest`, `--triggerStrategy`, `--triggerPx`
-- Grid stop: confirm `--stopType` (default omitted → keep assets; `1`=sell all to quote)
+- Grid stop: confirm `--stopType` (default `1`=close all positions/sell to quote; `2`=keep assets)
 - DCA stop: only `--algoId` needed
 - Demo dry-run: suggest `okx --profile demo bot grid create ...` when user is unsure
 
@@ -335,12 +360,15 @@ okx bot grid create --instId <id> --algoOrdType <type> \
   [--quoteSz <n>] [--baseSz <n>] \
   [--direction <long|short|neutral>] [--lever <n>] [--sz <n>] \
   [--basePos] [--no-basePos] \
+  [--tpTriggerPx <px>] [--slTriggerPx <px>] \
+  [--tpRatio <r>] [--slRatio <r>] \
+  [--algoClOrdId <id>] \
   [--json]
 ```
 
 | Param | Required | Default | Description |
 |---|---|---|---|
-| `--instId` | Yes | - | Instrument (e.g., `BTC-USDT` for spot grid, `BTC-USDT-SWAP` for contract grid) |
+| `--instId` | Yes | - | Instrument (e.g., `BTC-USDT` for spot grid, `BTC-USDT-SWAP` for USDT-margined contract, `BTC-USD-SWAP` for coin-margined contract) |
 | `--algoOrdType` | Yes | - | `grid` (spot grid) or `contract_grid` (contract grid) |
 | `--maxPx` | Yes | - | Upper price boundary |
 | `--minPx` | Yes | - | Lower price boundary |
@@ -350,8 +378,13 @@ okx bot grid create --instId <id> --algoOrdType <type> \
 | `--baseSz` | Cond. | - | Base currency investment — spot grid only |
 | `--direction` | Cond. | - | `long`, `short`, or `neutral` — contract grid only |
 | `--lever` | Cond. | - | Leverage (e.g., `5`) — contract grid only |
-| `--sz` | Cond. | - | Investment margin in USDT — contract grid only |
+| `--sz` | Cond. | - | Investment margin — contract grid only. USDT for USDT-margined (e.g. `BTC-USDT-SWAP`); base coin for coin-margined (e.g. `BTC-USD-SWAP` → sz in BTC) |
 | `--basePos` / `--no-basePos` | No | `true` | Open a base position at creation — contract grid only (ignored for neutral direction). Default is `true` (opens base position). Use `--no-basePos` to disable. |
+| `--tpTriggerPx` | No | - | Take-profit trigger price. Long grid: must be above current price; Short grid: must be below current price. Cannot be used with `--tpRatio` |
+| `--slTriggerPx` | No | - | Stop-loss trigger price. Long grid: must be below current price; Short grid: must be above current price. Cannot be used with `--slRatio` |
+| `--tpRatio` | No | - | Take-profit ratio (e.g., `0.1` = 10%) — contract grid only. Cannot be used with `--tpTriggerPx` |
+| `--slRatio` | No | - | Stop-loss ratio (e.g., `0.05` = 5%) — contract grid only. Cannot be used with `--slTriggerPx` |
+| `--algoClOrdId` | No | - | User-defined strategy ID. Alphanumeric only, max 32 chars. Must be unique per user — reuse is rejected even after bot stops |
 
 ---
 
@@ -366,8 +399,8 @@ okx bot grid stop --algoId <id> --algoOrdType <type> --instId <id> \
 
 | `--stopType` | Behavior |
 |---|---|
-| `1` | Stop + sell/close all positions at market |
-| `2` | Stop + keep current assets as-is (default) |
+| `1` | Stop + sell/close all positions at market (default) |
+| `2` | Stop + keep current assets as-is |
 | `3` | Stop + close at limit prices |
 | `5` | Stop + partial close |
 | `6` | Stop without selling (smart arbitrage) |
@@ -533,6 +566,22 @@ okx bot grid details --algoOrdType grid --algoId 12345678
 # → pnlRatio, pnl, investAmt, totalAnnRate, runType, gridNum, maxPx, minPx
 ```
 
+**"Create a coin-margined BTC grid bot, long, 5x leverage, 0.01 BTC"**
+```bash
+okx bot grid create --instId BTC-USD-SWAP --algoOrdType contract_grid \
+  --minPx 60000 --maxPx 80000 --gridNum 10 \
+  --direction long --lever 5 --sz 0.01
+# → Grid bot created: 34567890 (OK) — sz in BTC (coin-margined)
+```
+
+**"Create a grid bot with take-profit and stop-loss"**
+```bash
+okx bot grid create --instId BTC-USDT --algoOrdType grid \
+  --minPx 60000 --maxPx 80000 --gridNum 10 --quoteSz 1000 \
+  --tpTriggerPx 85000 --slTriggerPx 55000
+# → Grid bot with TP at 85000, SL at 55000
+```
+
 **"Stop my BTC grid bot and keep the assets"**
 ```bash
 okx bot grid stop --algoId 12345678 --algoOrdType grid --instId BTC-USDT --stopType 2
@@ -578,8 +627,12 @@ okx bot dca stop --algoId 87654321
 - **Insufficient balance**: check `okx-cex-portfolio` → `account balance` before creating. If insufficient, **do NOT auto-transfer** — report the shortfall and ask the user for instructions (see Step 2)
 - **Contract grid direction**: `long` (buys more at lower prices), `short` (sells at higher), `neutral` (both)
 - **Contract grid basePos**: defaults to `true` — long/short grids automatically open a base position at creation. Neutral direction ignores this. Pass `--no-basePos` to disable.
-- **Contract grid --sz**: investment margin in USDT (not number of contracts)
-- **Stop type**: `stopType 1` sells/closes all; `stopType 2` keeps assets; `stopType 5/6` for contract grid positions
+- **Contract grid --sz**: investment margin in USDT for USDT-margined (e.g. `BTC-USDT-SWAP`); in base coin for coin-margined (e.g. `BTC-USD-SWAP` → sz in BTC)
+- **Coin-margined (CoinM) contract grid**: use instruments like `BTC-USD-SWAP`, `ETH-USD-SWAP`. Only perpetual swaps supported (not delivery futures like `BTC-USD-YYMMDD`). Response includes `feeCcy` field (e.g. `BTC`)
+- **TP/SL parameters**: `tpTriggerPx` (take-profit trigger price) and `tpRatio` (take-profit ratio) **cannot be used together** — API returns error 50024. Same for `slTriggerPx` and `slRatio`. Use one method per side.
+- **TP/SL trigger price rules**: Direction matters — Long grid: `tpTriggerPx` must be above current price, `slTriggerPx` must be below; Short grid: `tpTriggerPx` must be below current price, `slTriggerPx` must be above. Check price with `okx-cex-market` before setting.
+- **algoClOrdId**: user-defined strategy ID. Alphanumeric only (`[A-Za-z0-9]`), max 32 chars. Once used, cannot be reused even after the bot stops. Suggest unique IDs (e.g. append timestamp).
+- **Stop type**: `stopType 1` sells/closes all (default); `stopType 2` keeps assets; `stopType 5/6` for contract grid positions
 - **Already stopped bot**: stop returns error — check `bot grid orders --history` first to confirm state
 - **Demo mode**: `okx --profile demo bot grid create ...` — safe for testing, no real funds
 
@@ -617,9 +670,14 @@ When communicating with users, use the display name instead of the raw API field
 | `quoteSz` | Investment amount ({quote}) | 投入金额（{quote}） |
 | `baseSz` | Investment amount ({base}) | 投入金额（{base}） |
 | `runType` | Spacing mode (1=arithmetic, 2=geometric) | 网格间距模式（1=等差, 2=等比） |
+| `tpTriggerPx` | Take-profit trigger price | 止盈触发价 |
+| `slTriggerPx` | Stop-loss trigger price | 止损触发价 |
+| `algoClOrdId` | Custom strategy ID | 自定义策略ID |
 | `stopType` | Stop behavior | 停止方式 |
 
 #### Grid Bot — Contract (`algoOrdType=contract_grid`)
+
+> **Currency for `sz`**: For USDT-margined (e.g. `BTC-USDT-SWAP`), `{margin}` = USDT. For coin-margined (e.g. `BTC-USD-SWAP`), `{margin}` = the base coin (BTC).
 
 | API Field | Display Name (EN) | Display Name (ZH) |
 |---|---|---|
@@ -627,12 +685,18 @@ When communicating with users, use the display name instead of the raw API field
 | `minPx` | Lower price bound | 网格下限价格 |
 | `maxPx` | Upper price bound | 网格上限价格 |
 | `gridNum` | Number of grids | 网格数量 |
-| `sz` | Investment margin ({quote}) | 投入保证金（{quote}） |
+| `sz` | Investment margin ({margin}) | 投入保证金（{margin}） |
 | `direction` | Direction (long / short / neutral) | 方向（做多 / 做空 / 中性） |
 | `lever` | Leverage | 杠杆倍数 |
 | `runType` | Spacing mode (1=arithmetic, 2=geometric) | 网格间距模式（1=等差, 2=等比） |
 | `basePos` | Open base position | 是否开底仓 |
+| `tpTriggerPx` | Take-profit trigger price | 止盈触发价 |
+| `slTriggerPx` | Stop-loss trigger price | 止损触发价 |
+| `tpRatio` | Take-profit ratio (%) | 止盈比例（%） |
+| `slRatio` | Stop-loss ratio (%) | 止损比例（%） |
+| `algoClOrdId` | Custom strategy ID | 自定义策略ID |
 | `stopType` | Stop behavior | 停止方式 |
+| `feeCcy` | Fee currency | 手续费币种 |
 
 #### DCA Bot (Contract)
 
@@ -668,7 +732,10 @@ When collecting parameters from the user, always use natural language — never 
 - Ask "What price range for the grid? (lower ~ upper)" — not "Enter minPx and maxPx"
 - Ask "How many grids?" — not "Enter gridNum"
 - Spot grid: ask "How much to invest (USDT)?" (use the actual quote currency) — not "Enter quoteSz"
-- Contract grid: ask "How much margin to invest (USDT)?" (use the actual quote currency) — not "Enter sz"
+- USDT-margined contract grid: ask "How much margin to invest (USDT)?" — not "Enter sz"
+- Coin-margined contract grid: ask "How much margin to invest (BTC)?" (use the actual base coin) — not "Enter sz"
+- TP/SL: ask "Set a take-profit price?" / "Set a stop-loss price?" — not "Enter tpTriggerPx" (contract grid can also use ratio: "Set a take-profit ratio (%) instead?")
+- Custom strategy ID: ask "Want to assign a custom ID to this bot?" — not "Enter algoClOrdId"
 - DCA: ask "How much initial margin (USDT)?" — not "Enter initOrdAmt"
 - Ask "What leverage?" — not "Enter lever"
 - Ask "Long or short?" — not "Enter direction"
