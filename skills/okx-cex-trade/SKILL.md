@@ -670,6 +670,7 @@ Must provide at least one of `--newSz` or `--newPx`.
 ```bash
 okx spot algo place --instId <id> --side <buy|sell> \
   --ordType <oco|conditional|move_order_stop> --sz <n> \
+  [--tgtCcy <base_ccy|quote_ccy>] \
   [--tpTriggerPx <p>] [--tpOrdPx <p|-1>] \
   [--slTriggerPx <p>] [--slOrdPx <p|-1>] \
   [--callbackRatio <r>] [--callbackSpread <s>] [--activePx <p>] \
@@ -682,6 +683,7 @@ okx spot algo place --instId <id> --side <buy|sell> \
 | `--side` | Yes | - | `buy` or `sell` |
 | `--ordType` | Yes | - | `oco`, `conditional`, or `move_order_stop` |
 | `--sz` | Yes | - | Order size in base currency |
+| `--tgtCcy` | No | base_ccy | `base_ccy`: sz in base currency; `quote_ccy`: sz in quote currency (e.g. USDT) |
 | `--tpTriggerPx` | Cond. | - | Take-profit trigger price |
 | `--tpOrdPx` | Cond. | - | TP order price; use `-1` for market execution |
 | `--slTriggerPx` | Cond. | - | Stop-loss trigger price |
@@ -875,6 +877,7 @@ Returns table: `instId`, `mgnMode`, `posSide`, `lever`.
 okx swap algo place --instId <id> --side <buy|sell> \
   --ordType <oco|conditional|move_order_stop> --sz <n> \
   --tdMode <cross|isolated> \
+  [--tgtCcy <base_ccy|quote_ccy>] \
   [--posSide <long|short>] [--reduceOnly] \
   [--tpTriggerPx <p>] [--tpOrdPx <p|-1>] \
   [--slTriggerPx <p>] [--slOrdPx <p|-1>] \
@@ -889,6 +892,7 @@ okx swap algo place --instId <id> --side <buy|sell> \
 | `--ordType` | Yes | - | `oco`, `conditional`, or `move_order_stop` |
 | `--sz` | Yes | - | Number of contracts |
 | `--tdMode` | Yes | - | `cross` or `isolated` |
+| `--tgtCcy` | No | base_ccy | `base_ccy`: sz in contracts; `quote_ccy`: sz in USDT amount |
 | `--posSide` | Cond. | - | `long` or `short` — required in hedge mode |
 | `--reduceOnly` | No | false | Close-only; will not open a new position if one doesn't exist |
 | `--tpTriggerPx` | Cond. | - | Take-profit trigger price |
@@ -900,6 +904,13 @@ okx swap algo place --instId <id> --side <buy|sell> \
 | `--activePx` | No | - | Price at which trailing stop becomes active |
 
 For `move_order_stop`: provide `--callbackRatio` or `--callbackSpread` (one required).
+
+**Example — TP/SL worth 500 USDT on BTC perp (auto-convert to contracts):**
+```bash
+okx swap algo place --instId BTC-USDT-SWAP --side sell --ordType conditional \
+  --sz 500 --tgtCcy quote_ccy --tdMode cross --posSide long \
+  --slTriggerPx 60000 --slOrdPx -1
+```
 
 ---
 
@@ -1119,6 +1130,7 @@ okx futures get --instId <id> [--ordId <id>] [--json]
 okx futures algo place --instId <id> --side <buy|sell> \
   --ordType <oco|conditional|move_order_stop> --sz <n> \
   --tdMode <cross|isolated> \
+  [--tgtCcy <base_ccy|quote_ccy>] \
   [--posSide <long|short>] [--reduceOnly] \
   [--tpTriggerPx <p>] [--tpOrdPx <p|-1>] \
   [--slTriggerPx <p>] [--slOrdPx <p|-1>] \
@@ -1133,6 +1145,7 @@ okx futures algo place --instId <id> --side <buy|sell> \
 | `--ordType` | Yes | - | `oco`, `conditional`, or `move_order_stop` |
 | `--sz` | Yes | - | Number of contracts |
 | `--tdMode` | Yes | - | `cross` or `isolated` |
+| `--tgtCcy` | No | base_ccy | `base_ccy`: sz in contracts; `quote_ccy`: sz in USDT amount |
 | `--posSide` | Cond. | - | `long` or `short` — required in hedge mode |
 | `--reduceOnly` | No | false | Close-only; will not open a new position if one doesn't exist |
 | `--tpTriggerPx` | Cond. | - | Take-profit trigger price |
