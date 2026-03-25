@@ -333,7 +333,7 @@ Before any authenticated command:
     - Optional TP/SL: `--tpTriggerPx`/`--slTriggerPx` (trigger price) OR `--tpRatio`/`--slRatio` (ratio) — do NOT mix trigger price and ratio for the same side
     - Optional `--algoClOrdId`: user-defined strategy ID (alphanumeric, max 32 chars, globally unique)
 - DCA create: confirm `--instId`, `--lever`, `--direction`, `--initOrdAmt`, `--safetyOrdAmt`, `--maxSafetyOrds`, `--pxSteps`, `--pxStepsMult`, `--volMult`, `--tpPct`; optional: `--slPct`, `--slMode`, `--allowReinvest`, `--triggerStrategy`, `--triggerPx`
-- Grid stop: confirm `--stopType` (default omitted → keep assets; `1`=sell all to quote)
+- Grid stop: confirm `--stopType` (default `1`=close all positions/sell to quote; `2`=keep assets)
 - DCA stop: only `--algoId` needed
 - Demo dry-run: suggest `okx --profile demo bot grid create ...` when user is unsure
 
@@ -399,8 +399,8 @@ okx bot grid stop --algoId <id> --algoOrdType <type> --instId <id> \
 
 | `--stopType` | Behavior |
 |---|---|
-| `1` | Stop + sell/close all positions at market |
-| `2` | Stop + keep current assets as-is (default) |
+| `1` | Stop + sell/close all positions at market (default) |
+| `2` | Stop + keep current assets as-is |
 | `3` | Stop + close at limit prices |
 | `5` | Stop + partial close |
 | `6` | Stop without selling (smart arbitrage) |
@@ -632,7 +632,7 @@ okx bot dca stop --algoId 87654321
 - **TP/SL parameters**: `tpTriggerPx` (take-profit trigger price) and `tpRatio` (take-profit ratio) **cannot be used together** — API returns error 50024. Same for `slTriggerPx` and `slRatio`. Use one method per side.
 - **TP/SL trigger price rules**: Direction matters — Long grid: `tpTriggerPx` must be above current price, `slTriggerPx` must be below; Short grid: `tpTriggerPx` must be below current price, `slTriggerPx` must be above. Check price with `okx-cex-market` before setting.
 - **algoClOrdId**: user-defined strategy ID. Alphanumeric only (`[A-Za-z0-9]`), max 32 chars. Once used, cannot be reused even after the bot stops. Suggest unique IDs (e.g. append timestamp).
-- **Stop type**: `stopType 1` sells/closes all; `stopType 2` keeps assets (default); `stopType 5/6` for contract grid positions
+- **Stop type**: `stopType 1` sells/closes all (default); `stopType 2` keeps assets; `stopType 5/6` for contract grid positions
 - **Already stopped bot**: stop returns error — check `bot grid orders --history` first to confirm state
 - **Demo mode**: `okx --profile demo bot grid create ...` — safe for testing, no real funds
 
