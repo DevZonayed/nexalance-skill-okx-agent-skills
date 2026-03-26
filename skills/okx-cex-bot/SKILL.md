@@ -343,6 +343,15 @@ If the trading account balance is insufficient to create a bot, do NOT automatic
 2. Reduce the investment size to fit available balance
 3. Cancel the bot creation
 
+**⚠ Insufficient margin error (51340) — do NOT auto-retry.**
+If `grid_create_order` returns error code `51340`, the provided margin (`--sz`) is below the platform minimum. Handle as follows:
+1. Extract the minimum margin from the error message (e.g. "Used margin must be greater than 0.3048 SOL" → min = 0.3048 SOL)
+2. Query `okx account balance <currency>` to check the user's available balance for that currency
+3. Present the decision to the user:
+   - "这个网格最少需要 [最小值] [币种]，你当前可用 [可用余额] [币种]，你希望投入多少？"
+   - If available balance < minimum → inform the user the balance is insufficient and suggest topping up
+4. Wait for the user's explicit reply, then retry with the user-specified amount
+
 ### Step 3: Verify After Writes
 
 - After grid create: run `okx bot grid orders` to confirm bot is active; then `okx bot grid details` to monitor PnL
