@@ -583,8 +583,9 @@ Before any authenticated command:
 
 1. **Profile** — determined in Step 0; use `--profile live` (实盘) or `--profile demo` (模拟盘)
 2. **Confirm parameters** — confirm the key order details once before executing:
-   - Spot place: confirm `--instId`, `--side`, `--ordType`, `--sz`; price (`--px`) required for limit orders; optionally attach TP/SL with `--tpTriggerPx`/`--slTriggerPx`
-   - Swap/Futures/Option place: **before confirming `--sz`, apply "Sz Conversion Rules for Derivatives"** — if the user's input was a USDT amount, resolve it to contracts first, show the conversion summary, and use the computed `sz` in the confirmation; confirm `--instId`, `--side`, `--sz`, `--tdMode`; confirm `--posSide` if in hedge mode; optionally attach TP/SL with `--tpTriggerPx`/`--slTriggerPx`
+   - Spot place: confirm `--instId`, `--side`, `--ordType`, `--sz` (and `--tgtCcy quote_ccy` if user specified a quote-currency amount — do NOT manually calculate base currency quantity); price (`--px`) required for limit orders; optionally attach TP/SL with `--tpTriggerPx`/`--slTriggerPx`
+   - Swap/Futures place: confirm `--instId`, `--side`, `--sz`, `--tdMode` (and `--tgtCcy quote_ccy` if user specified a quote-currency amount — do NOT manually convert to contracts); confirm `--posSide` if in hedge mode; optionally attach TP/SL with `--tpTriggerPx`/`--slTriggerPx`
+   - Option place: Options do NOT support `--tgtCcy` — if the user gives a USDT amount, manually convert to contracts using instrument metadata (ctVal, markPx) and show the conversion summary before confirming; confirm `--instId`, `--side`, `--sz`, `--tdMode`; do NOT attach TP/SL (options do not support attached TP/SL — manage risk by amending or cancelling the option order directly)
    - Swap close: confirm `--instId`, `--mgnMode`, `--posSide`; closes the entire position at market
    - Swap leverage: confirm new leverage and impact on existing positions; cannot exceed exchange max
    - Futures close: confirm `--instId`, `--mgnMode`, `--posSide`; closes the entire position at market
@@ -1541,7 +1542,7 @@ okx option positions
 ## Edge Cases
 
 ### Spot
-- **Market order size**: `--sz` is in base currency (e.g., BTC amount), not USDT
+- **Market order size**: default `--sz` is in base currency (e.g., BTC amount). If user specifies a USDT amount, use `--tgtCcy quote_ccy` and pass the USDT value as `--sz` directly — do NOT manually convert
 - **Insufficient balance**: check `okx-cex-portfolio account balance` before placing
 - **Price not required**: `market` orders don't need `--px`; `limit` / `post_only` / `fok` / `ioc` do
 - **Algo oco**: provide both `tpTriggerPx` and `slTriggerPx`; price `-1` means market execution at trigger
@@ -1550,7 +1551,7 @@ okx option positions
 - **Algo on close side**: always set `--side` opposite to position direction (e.g., long spot holding → `sell` algo, short spot → `buy` algo)
 
 ### Swap / Perpetual
-- **sz unit**: always number of contracts — never pass a USDT amount directly. If the user gives a USDT amount, apply "Sz Conversion Rules for Derivatives" before placing
+- **sz unit**: number of contracts, or a USDT amount when using `--tgtCcy quote_ccy`. If the user specifies a USDT amount, pass it directly as `--sz` with `--tgtCcy quote_ccy` — do NOT manually convert to contracts
 - **Linear vs inverse**: `BTC-USDT-SWAP` is linear (USDT-margined); `BTC-USD-SWAP` is inverse (BTC-margined). For inverse, warn the user that margin and P&L are settled in BTC
 - **posSide**: required in hedge mode (`long_short_mode`); omit in net mode. Check `okx account config` for `posMode`
 - **tdMode**: use `cross` for cross-margin, `isolated` for isolated margin
@@ -1561,8 +1562,8 @@ okx option positions
 - **Stock tokens (instCategory=3)**: instruments like `TSLA-USDT-SWAP`, `NVDA-USDT-SWAP` follow the same linear SWAP flow (USDT-margined, sz in contracts). Key differences: (1) max leverage **5x** — check with `swap get-leverage` before placing, set with `swap leverage --lever <n≤5>`; (2) `--posSide` is always required; (3) trading restricted to stock market hours (US stocks: Mon–Fri ~09:30–16:00 ET) — confirm live ticker before placing. Use `okx market stock-tokens` to list available instruments
 
 ### Futures / Delivery
-- **sz unit**: always number of contracts — apply "Sz Conversion Rules for Derivatives" when user gives a USDT amount
-- **Linear vs inverse**: `BTC-USDT-<YYMMDD>` is linear; `BTC-USD-<YYMMDD>` is inverse (USD face value, BTC settlement). For inverse, `sz = floor(usdtAmt / ctVal)` where ctVal is typically 100 USD
+- **sz unit**: number of contracts, or a USDT amount when using `--tgtCcy quote_ccy`. If the user specifies a USDT amount, pass it directly as `--sz` with `--tgtCcy quote_ccy` — do NOT manually convert to contracts
+- **Linear vs inverse**: `BTC-USDT-<YYMMDD>` is linear; `BTC-USD-<YYMMDD>` is inverse (USD face value, BTC settlement). For inverse, use `--tgtCcy quote_ccy` to specify a USD amount (note: `quote_ccy` = USD, not USDT for inverse instruments); warn the user that margin and P&L are settled in BTC
 - **instId format**: delivery futures use date suffix: `BTC-USDT-<YYMMDD>` (e.g., `BTC-USDT-260328` for March 28, 2026 expiry)
 - **Expiry**: futures expire on the delivery date — all positions auto-settle; do not hold through expiry unless intended
 - **Close position**: use `futures close` to close the **entire** position at market price — same semantics as `swap close`; to partial close, use `futures place` with `--reduceOnly`
@@ -1571,7 +1572,7 @@ okx option positions
 - **Algo on close side**: always set `--side` opposite to position (e.g., long position → `sell` algo)
 
 ### Options
-- **sz unit**: always number of contracts — apply "Sz Conversion Rules for Derivatives" when user gives a USDT amount. For inverse options (BTC-USD), premium is quoted in BTC; convert via `sz = floor(usdtAmt / (markPx_BTC × btcPx × ctVal))`
+- **sz unit**: always number of contracts — Options do NOT support `--tgtCcy`, so manually convert when user gives a USDT amount. For inverse options (BTC-USD), premium is quoted in BTC; convert via `sz = floor(usdtAmt / (markPx_BTC × btcPx × ctVal))`
 - **instId format**: `{uly}-{YYMMDD}-{strike}-{C|P}` — e.g. `BTC-USD-250328-95000-C`; always run `okx option instruments --uly BTC-USD` first to confirm the exact contract exists
 - **tdMode**: buyers always use `cash` (full premium paid upfront, no liquidation); sellers use `cross` or `isolated` (margin required, liquidation risk)
 - **px unit**: quoted in base currency for inverse options (e.g. `0.005` = 0.005 BTC premium per contract); always show equivalent USDT value to the user
@@ -1588,5 +1589,6 @@ okx option positions
 - Rate limit: 60 order operations per 2 seconds per UID
 - Batch operations (batch cancel, batch amend) are available via MCP tools directly if needed
 - Position mode (`net` vs `long_short_mode`) affects whether `--posSide` is required
-- Spot/swap/futures place orders support `--tgtCcy`: use `quote_ccy` when user specifies USDT amount, `base_ccy` (default) for base currency or contracts. Do NOT manually convert between currencies — let the API handle it via tgtCcy. Option does not support tgtCcy.
+- **tgtCcy rule (spot/swap/futures)**: when user specifies a quote-currency amount (e.g. "30 USDT worth"), MUST use `--tgtCcy quote_ccy` and pass the USDT amount as `--sz`. Do NOT manually calculate base currency quantity or contract count — let the API handle the conversion. When user specifies base currency quantity or contract count, omit `--tgtCcy` (defaults to `base_ccy`). Options do NOT support `--tgtCcy` — manual conversion required (see Options notes).
 - **Order amount mismatch safety rule**: If the order would execute at a significantly different amount than the user requested (e.g. due to minSz or conversion), STOP and inform the user. Never auto-adjust order size without explicit user confirmation.
+- **No follow-up orders**: After an order executes, if the filled amount materially differs from what the user requested (beyond normal rounding or minimum lot size differences), STOP immediately. Inform the user of the actual filled amount and the discrepancy. Do NOT place any additional orders to compensate for the shortfall or overfill. Wait for explicit user instruction before taking further action.
